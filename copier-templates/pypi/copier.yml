@@ -2,6 +2,10 @@ package_name:
   type: str
   default: mylib
   help: Package name (PyPI + repo name)
+python_name:
+  type: str
+  default: "{{ package_name | replace('-', '_') }}"
+  help: Python import name (package_name with hyphens as underscores)
 description:
   type: str
   default: A tiny zero-dependency utility.
