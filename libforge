@@ -76,9 +76,21 @@ def _read_queue():
         if not line.strip():
             continue
         try:
-            items.append(json.loads(line))
+            record = json.loads(line)
         except json.JSONDecodeError:
             print(f"warning: skipping malformed queue line {ln}", file=sys.stderr)
+            continue
+        if (
+            not isinstance(record, dict)
+            or not isinstance(record.get("id"), int)
+            or not record.get("idea")
+        ):
+            print(
+                f"warning: skipping schema-incomplete queue line {ln}",
+                file=sys.stderr,
+            )
+            continue
+        items.append(record)
     return items
 
 
@@ -120,7 +132,7 @@ def cmd_new(args):
     import re
 
     eco = args.ecosystem
-    if not re.match(r"^[a-z][a-z0-9-]{1,63}$", args.name):
+    if not re.fullmatch(r"[a-z][a-z0-9-]{1,63}", args.name):
         print(
             "invalid package name: lowercase letters, digits, hyphens only;"
             " must start with a letter (keeps npm/PyPI/crates/TOML/JSON safe)",
@@ -128,12 +140,15 @@ def cmd_new(args):
         )
         return 2
     if (
-        not args.description.isascii()
-        or any(c in args.description for c in '"\\\n\r\t')
+        not args.description
+        or any(
+            not (32 <= ord(c) <= 126) or c in '"\\'
+            for c in args.description
+        )
     ):
         print(
-            "description must be printable ASCII without quotes,"
-            " backslashes, or control characters",
+            "description must be printable ASCII (no control characters),"
+            " without quotes or backslashes",
             file=sys.stderr,
         )
         return 2
