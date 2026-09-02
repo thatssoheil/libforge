@@ -32,8 +32,10 @@ jobs:
           python-version: '3.11'
       - run: pipx install copier
       - run: |
-          copier copy --defaults --data package_name=demolib --data description="demo"             copier-templates/pypi /tmp/fgen-py
+          copier copy --defaults --data package_name=demolib --data description="demo" copier-templates/pypi /tmp/fgen-py
           cd /tmp/fgen-py && python -m unittest discover -s tests -v
+        env:
+          PYTHONPATH: src
 
   crates:
     runs-on: ubuntu-latest

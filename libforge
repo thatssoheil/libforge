@@ -59,10 +59,11 @@ def cmd_namecheck(args):
     except Exception as e:
         results["github_repos"] = f"error-{e}"
     print(json.dumps({name: results}, indent=2))
-    clear = all(v in ("free",) for v in results.values()) or (
-        results.get("github_repos") == 0
-        and results.get("npm") == "free"
+    clear = (
+        results.get("npm") == "free"
         and results.get("pypi") == "free"
+        and results.get("crates") == "free"
+        and results.get("github_repos") == 0
     )
     return 0 if clear else 1
 
@@ -70,11 +71,21 @@ def cmd_namecheck(args):
 def _read_queue():
     if not QUEUE.exists():
         return []
-    return [json.loads(l) for l in QUEUE.read_text().splitlines() if l.strip()]
+    items = []
+    for ln, line in enumerate(QUEUE.read_text().splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
+            items.append(json.loads(line))
+        except json.JSONDecodeError:
+            print(f"warning: skipping malformed queue line {ln}", file=sys.stderr)
+    return items
 
 
 def _write_queue(items):
-    QUEUE.write_text("".join(json.dumps(i) + "\n" for i in items))
+    tmp = QUEUE.with_suffix(".tmp")
+    tmp.write_text("".join(json.dumps(i) + "\n" for i in items))
+    tmp.replace(QUEUE)
 
 
 def cmd_queue(args):
@@ -106,7 +117,26 @@ def cmd_queue(args):
 
 
 def cmd_new(args):
+    import re
+
     eco = args.ecosystem
+    if not re.match(r"^[a-z][a-z0-9-]{1,63}$", args.name):
+        print(
+            "invalid package name: lowercase letters, digits, hyphens only;"
+            " must start with a letter (keeps npm/PyPI/crates/TOML/JSON safe)",
+            file=sys.stderr,
+        )
+        return 2
+    if (
+        not args.description.isascii()
+        or any(c in args.description for c in '"\\\n\r\t')
+    ):
+        print(
+            "description must be printable ASCII without quotes,"
+            " backslashes, or control characters",
+            file=sys.stderr,
+        )
+        return 2
     tpl = HUB / "copier-templates" / eco
     if not tpl.exists():
         print(f"no template for ecosystem {eco}", file=sys.stderr)
