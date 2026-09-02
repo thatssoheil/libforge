@@ -1,0 +1,9 @@
+package_name:
+  type: str
+  default: mylib
+  help: Package name (PyPI + repo name)
+description:
+  type: str
+  default: A tiny zero-dependency utility.
+  help: One-line description
+_subdirectory: project

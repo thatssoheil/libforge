@@ -1,0 +1,13 @@
+package_name:
+  type: str
+  default: mylib
+  help: Package name (npm + repo name)
+description:
+  type: str
+  default: A tiny zero-dependency utility.
+  help: One-line description
+keywords:
+  type: str
+  default: '[]'
+  help: npm keywords as a JSON array string
+_subdirectory: project

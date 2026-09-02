@@ -1,0 +1,18 @@
+//! {{ package_name }} - {{ description }}
+//!
+//! Built with AI assistance under human review. Zero dependencies by design:
+//! audit this crate, that is the whole supply chain.
+
+pub fn hello() -> &'static str {
+    "{{ package_name }}"
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hello_works() {
+        assert_eq!(hello(), "{{ package_name }}");
+    }
+}

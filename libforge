@@ -1,0 +1,176 @@
+#!/usr/bin/env python3
+"""libforge - thin CLI for the self-creating library pipeline.
+
+Zero dependencies (stdlib only). Commands:
+  namecheck <name>            Check a name across npm/PyPI/crates/GitHub
+  queue add <idea>            Append an idea to forge-queue.jsonl
+  queue list                  Show the queue
+  queue pop                   Print and mark the oldest queued idea
+  new <name> --ecosystem E    Scaffold a new library from a template
+  hub                         Regenerate the showcase README from registry.json
+"""
+import argparse, json, subprocess, sys, time, urllib.request
+from pathlib import Path
+
+HUB = Path(__file__).resolve().parent
+QUEUE = HUB / "forge-queue.jsonl"
+REGISTRY = HUB / "registry.json"
+UA = "libforge-namecheck/0.1 (github.com/thatssoheil)"
+
+
+def _get(url):
+    req = urllib.request.Request(url, headers={"User-Agent": UA})
+    with urllib.request.urlopen(req, timeout=15) as r:
+        return r.status
+
+
+def cmd_namecheck(args):
+    name = args.name
+    results = {}
+    try:
+        _get(f"https://registry.npmjs.org/{name}")
+        results["npm"] = "TAKEN"
+    except urllib.error.HTTPError as e:
+        results["npm"] = "free" if e.code == 404 else f"http-{e.code}"
+    except Exception as e:
+        results["npm"] = f"error-{e}"
+    try:
+        code = _get(f"https://pypi.org/pypi/{name}/json")
+        results["pypi"] = "TAKEN" if code == 200 else f"http-{code}"
+    except urllib.error.HTTPError as e:
+        results["pypi"] = "free" if e.code == 404 else f"http-{e.code}"
+    except Exception as e:
+        results["pypi"] = f"error-{e}"
+    try:
+        code = _get(f"https://crates.io/api/v1/crates/{name}")
+        results["crates"] = "TAKEN" if code == 200 else f"http-{code}"
+    except urllib.error.HTTPError as e:
+        results["crates"] = "free" if e.code == 404 else f"http-{e.code}"
+    except Exception as e:
+        results["crates"] = f"error-{e}"
+    try:
+        req = urllib.request.Request(
+            f"https://api.github.com/search/repositories?q={name}+in:name&per_page=5",
+            headers={"User-Agent": UA},
+        )
+        with urllib.request.urlopen(req, timeout=15) as r:
+            n = json.load(r).get("total_count", 0)
+        results["github_repos"] = n
+    except Exception as e:
+        results["github_repos"] = f"error-{e}"
+    print(json.dumps({name: results}, indent=2))
+    clear = all(v in ("free",) for v in results.values()) or (
+        results.get("github_repos") == 0
+        and results.get("npm") == "free"
+        and results.get("pypi") == "free"
+    )
+    return 0 if clear else 1
+
+
+def _read_queue():
+    if not QUEUE.exists():
+        return []
+    return [json.loads(l) for l in QUEUE.read_text().splitlines() if l.strip()]
+
+
+def _write_queue(items):
+    QUEUE.write_text("".join(json.dumps(i) + "\n" for i in items))
+
+
+def cmd_queue(args):
+    items = _read_queue()
+    if args.queue_cmd == "add":
+        entry = {
+            "id": max([i.get("id", 0) for i in items], default=0) + 1,
+            "idea": args.idea,
+            "title": args.title or args.idea,
+            "ecosystems": (args.ecosystems or "npm").split(","),
+            "added": time.strftime("%Y-%m-%d"),
+            "status": "queued",
+        }
+        items.append(entry)
+        _write_queue(items)
+        print(json.dumps(entry))
+    elif args.queue_cmd == "list":
+        for i in items:
+            print(f'{i["id"]} [{i.get("status")}] {i["idea"]} - {i.get("title", "")}')
+    elif args.queue_cmd == "pop":
+        for i in items:
+            if i.get("status") == "queued":
+                i["status"] = "picked"
+                _write_queue(items)
+                print(json.dumps(i))
+                return 0
+        print("queue empty")
+    return 0
+
+
+def cmd_new(args):
+    eco = args.ecosystem
+    tpl = HUB / "copier-templates" / eco
+    if not tpl.exists():
+        print(f"no template for ecosystem {eco}", file=sys.stderr)
+        return 2
+    rc = subprocess.run(
+        [
+            "uvx", "copier", "copy", "--defaults",
+            "--data", f"package_name={args.name}",
+            "--data", f"description={args.description}",
+            "--data", 'keywords=["utility"]',
+            str(tpl), str(args.dest),
+        ]
+    ).returncode
+    if rc != 0:
+        print("copier failed", file=sys.stderr)
+        return rc
+    print(f"scaffolded {eco}/{args.name} -> {args.dest}")
+    print("next: implement core, forge test, forge review, forge ship")
+    return 0
+
+
+def cmd_hub(args):
+    reg = json.loads(REGISTRY.read_text())
+    rows = []
+    for lib in reg["libraries"]:
+        rows.append(
+            f'| [{lib["name"]}](https://github.com/thatssoheil/{lib["name"]}) '
+            f'| {", ".join(lib.get("ecosystems", []))} | {lib.get("status", "?")} '
+            f'| {lib.get("badges", "")} |'
+        )
+    body = "\n".join(rows) or "| - | - | - | - |"
+    readme = (HUB / "README.md").read_text()
+    marker = "|---------|------------|--------|--------|"
+    before, _, after = readme.partition(marker)
+    idx = after.find("\n## ")
+    tail = after[idx + 1:] if idx != -1 else "\n"
+    (HUB / "README.md").write_text(before + marker + "\n" + body + "\n" + tail)
+    print(f"registry has {len(reg['libraries'])} libraries; README table regenerated")
+    return 0
+
+
+def main():
+    p = argparse.ArgumentParser(prog="libforge")
+    sub = p.add_subparsers(dest="cmd", required=True)
+    nc = sub.add_parser("namecheck")
+    nc.add_argument("name")
+    nc.set_defaults(fn=cmd_namecheck)
+    q = sub.add_parser("queue")
+    q.add_argument("queue_cmd", choices=["add", "list", "pop"])
+    q.add_argument("idea", nargs="?")
+    q.add_argument("--title")
+    q.add_argument("--ecosystems")
+    q.set_defaults(fn=cmd_queue)
+    n = sub.add_parser("new")
+    n.add_argument("name")
+    n.add_argument("--ecosystem", default="npm", choices=["npm", "pypi", "crates"])
+    n.add_argument("--description", default="A tiny zero-dependency utility.")
+    n.add_argument("--dest", required=True)
+    n.set_defaults(fn=cmd_new)
+    h = sub.add_parser("hub")
+    h.set_defaults(fn=cmd_hub)
+    args = p.parse_args()
+    sys.exit(args.fn(args))
+
+
+if __name__ == "__main__":
+    main()
