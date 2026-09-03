@@ -193,6 +193,59 @@ def cmd_hub(args):
     return 0
 
 
+def cmd_gapcheck(args):
+    """Concept-level gap analysis: is this idea genuinely unserved?
+
+    The politefetch incident (colliding with polite-fetch) proved exact-name
+    availability is NOT enough. Before committing to any idea, scan the
+    registries for ESTABLISHED equivalents. If a maintained package already
+    does the core thing, the idea is a duplicate unless we have a sharp,
+    documented differentiator. Exit 0 = genuinely unserved (GO); exit 1 =
+    existing equivalent found (hold - need a differentiator or a new idea).
+    """
+    import urllib.request, urllib.parse, json
+
+    q = urllib.parse.quote(args.concept)
+    headers = {"User-Agent": UA}
+    npm_hits = []
+    try:
+        req = urllib.request.Request(
+            f"https://registry.npmjs.org/-/v1/search?text={q}&size=8",
+            headers=headers,
+        )
+        with urllib.request.urlopen(req, timeout=15) as rf:
+            d = json.load(rf)
+        npm_hits = [
+            (o["package"].get("name"), o["package"].get("description", "")[:90])
+            for o in d.get("objects", [])
+            if o.get("package", {}).get("name")
+        ]
+    except Exception as e:
+        npm_hits = [(None, f"npm search unavailable: {e}")]
+
+    print(f"=== gap-check: '{args.concept}' ===")
+    if not npm_hits:
+        print("npm: no matches (genuinely under-served on npm)")
+    else:
+        print("npm existing near-equivalents:")
+        for name, desc in npm_hits[:6]:
+            print(f"  - {name}: {desc}")
+
+    # crude signal: if the top hit is a popular, maintained package doing the
+    # same thing, that is a real equivalent, not whitespace.
+    strong_hit = any(
+        name and any(w in (name or "").lower() for w in args.idea_keywords.split(","))
+        for name, _ in npm_hits
+    )
+    verdict = 1 if strong_hit and not args.force else 0
+    print()
+    print(
+        "VERDICT:",
+        "UNSERVED - go" if verdict == 0 else "EXISTING EQUIVALENT - hold (need differentiator or new idea)",
+    )
+    return verdict
+
+
 def main():
     p = argparse.ArgumentParser(prog="libforge")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -213,6 +266,11 @@ def main():
     n.set_defaults(fn=cmd_new)
     h = sub.add_parser("hub")
     h.set_defaults(fn=cmd_hub)
+    g = sub.add_parser("gapcheck")
+    g.add_argument("concept")
+    g.add_argument("--idea-keywords", default="", help="comma tokens that an equivalent would contain")
+    g.add_argument("--force", action="store_true", help="override a detected equivalent")
+    g.set_defaults(fn=cmd_gapcheck)
     args = p.parse_args()
     sys.exit(args.fn(args))
 
