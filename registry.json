@@ -9,6 +9,17 @@
       "repo": "github.com/thatssoheil/politefetch",
       "version": "0.1.0 (pending release merge)",
       "badges": "[CI](https://github.com/thatssoheil/politefetch/actions)"
+    },
+    {
+      "name": "schemaflint",
+      "ecosystem": "npm",
+      "status": "merged-to-main",
+      "release": "release PR blocked - owner must enable Actions->Workflow permissions (read/write)",
+      "measured_size": "15.4 KB (vs ajv ~1 MB, jsonschema 83 KB)",
+      "tests": "24/24",
+      "review": "7 rounds (5 reject, 2 approve); 14 defect/coverage classes",
+      "published": false,
+      "notes": "Prong-2 comparison-table: draft-07 JSON Schema core validator, zero deps, no build."
     }
   ],
   "updated": "2026-09-03"
