@@ -10,7 +10,7 @@ human-approved release PR - never by the agent.
 
 | Library | Ecosystems | Status | Badges |
 |---------|------------|--------|--------|
-| - | - | - | - |
+| [politefetch](https://github.com/thatssoheil/politefetch) | npm | shipped | [CI](https://github.com/thatssoheil/politefetch/actions) |
 ## How a library is born
 
 1. An idea lands in `forge-queue.jsonl` (agent triage findings + owner ideas).

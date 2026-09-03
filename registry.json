@@ -1,1 +1,15 @@
-{"libraries": [], "updated": "2026-09-02"}
+{
+  "libraries": [
+    {
+      "name": "politefetch",
+      "ecosystems": [
+        "npm"
+      ],
+      "status": "shipped",
+      "repo": "github.com/thatssoheil/politefetch",
+      "version": "0.1.0 (pending release merge)",
+      "badges": "[CI](https://github.com/thatssoheil/politefetch/actions)"
+    }
+  ],
+  "updated": "2026-09-03"
+}
