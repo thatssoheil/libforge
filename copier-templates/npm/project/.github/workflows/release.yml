@@ -14,3 +14,14 @@ jobs:
       - uses: googleapis/release-please-action@v5
         with:
           release-type: node
+          # GitHub suppresses workflow runs triggered by GITHUB_TOKEN-created
+          # events, so release-please has to sign with a PAT
+          # (secrets.RELEASE_PLEASE_TOKEN) for the tag and release it creates to
+          # propagate to publish.yml. The fallback keeps a missing secret from
+          # breaking this workflow: signing with GITHUB_TOKEN still opens the
+          # release PR and creates releases, but the downstream publish trigger
+          # stays suppressed. Publishing from that state needs a credential on
+          # the Publish side - NPM_TOKEN, or a trusted publisher registered for
+          # the package - and then either the PAT secret added above or a manual
+          # Publish dispatch.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
